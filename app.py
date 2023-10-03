@@ -5,7 +5,9 @@ from PIL import Image
 import io
 import os
 import uuid  # Para generar nombres de archivo únicos
+import logging
 
+logging.basicConfig(level=logging.DEBUG)
 app = Flask(__name__)
 CORS(app)
 
@@ -45,14 +47,14 @@ def compress_image(image_bytes, target_size_kb=200):
 def compress():
     files = request.files.getlist('images')
     compressed_image_urls = []  # Lista para almacenar las URLs de las imágenes comprimidas.
-    print("Pasando por el endpoint de compresión")
+    logging.info("Pasando por el endpoint de compresión")
     for file in files:
         original_size = len(file.read())
-        print(f'Tamaño original: {original_size / (1024 * 1024):.2f} MB')
+        logging.info(f'Tamaño original: {original_size / (1024 * 1024):.2f} MB')
         file.seek(0)  # resetear el puntero del archivo para poder leerlo de nuevo
         compressed_image = compress_image(file.read())
         compressed_size = len(compressed_image)
-        print(f'Tamaño comprimido: {compressed_size / (1024 * 1024):.2f} MB')
+        logging.info(f'Tamaño comprimido: {compressed_size / (1024 * 1024):.2f} MB')
         
         # Guardar la imagen comprimida en la carpeta 'uploads'
         filename = str(uuid.uuid4()) + '.jpg'
@@ -69,14 +71,14 @@ def compress():
 def remove_bg():
     files = request.files.getlist('images')
     bg_removed_image_urls = []  # Lista para almacenar las URLs de las imágenes sin fondo.
-    print("Pasando por el endpoint de eliminación de fondo")
+    logging.info("Pasando por el endpoint de eliminación de fondo")
     for file in files:
         size_before = len(file.read())
-        print(f'Tamaño antes de eliminar el fondo: {size_before / (1024 * 1024):.2f} MB')
+        logging.info(f'Tamaño antes de eliminar el fondo: {size_before / (1024 * 1024):.2f} MB')
         file.seek(0)  # resetear el puntero del archivo para poder leerlo de nuevo
         output_image = remove(file.read())
         size_after = len(output_image)
-        print(f'Tamaño después de eliminar el fondo: {size_after / (1024 * 1024):.2f} MB')
+        logging.info(f'Tamaño después de eliminar el fondo: {size_after / (1024 * 1024):.2f} MB')
         
         # Guardar la imagen sin fondo en la carpeta 'uploads'
         filename = str(uuid.uuid4()) + '.png'
@@ -89,4 +91,4 @@ def remove_bg():
     return jsonify({'images': bg_removed_image_urls})
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0')
