@@ -1,5 +1,5 @@
 Flask==2.0.1
 Flask-Cors==4.0.0
-rembg==2.0.50
+rembg==2.0.40
 Pillow==10.0.1
 gunicorn==21.2.0
