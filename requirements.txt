@@ -2,3 +2,4 @@ Flask==2.3.3
 Flask-Cors==4.0.0
 rembg==2.0.50
 Pillow==9.3.0
+gunicorn==21.2.0
