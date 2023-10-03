@@ -3,21 +3,20 @@ from flask_cors import CORS
 from rembg import remove
 from PIL import Image
 import io
-import os
-import uuid  # Para generar nombres de archivo únicos
+import logging
+import base64
 
+logging.basicConfig(level=logging.DEBUG)
 app = Flask(__name__)
 CORS(app)
 
-# Definir carpeta para guardar imágenes
-UPLOAD_FOLDER = 'uploads'
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+def image_to_base64(image_bytes):
+    return base64.b64encode(image_bytes).decode('utf-8')
 
-@app.route('/uploads/<filename>', methods=['GET'])
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+def base64_to_image(base64_string, output_path):
+    image_bytes = base64.b64decode(base64_string)
+    with open(output_path, 'wb') as img_file:
+        img_file.write(image_bytes)
 
 def compress_image(image_bytes, target_size_kb=200):
     input_image = Image.open(io.BytesIO(image_bytes))
@@ -44,49 +43,40 @@ def compress_image(image_bytes, target_size_kb=200):
 @app.route('/compress', methods=['POST'])
 def compress():
     files = request.files.getlist('images')
-    compressed_image_urls = []  # Lista para almacenar las URLs de las imágenes comprimidas.
-    print("Pasando por el endpoint de compresión")
+    compressed_images_base64 = []  # Lista para almacenar las imágenes comprimidas en Base64.
+    
+    logging.info("Pasando por el endpoint de compresión")
+    
     for file in files:
         original_size = len(file.read())
-        print(f'Tamaño original: {original_size / (1024 * 1024):.2f} MB')
+        logging.info(f'Tamaño original: {original_size / (1024 * 1024):.2f} MB')
+        
         file.seek(0)  # resetear el puntero del archivo para poder leerlo de nuevo
         compressed_image = compress_image(file.read())
-        compressed_size = len(compressed_image)
-        print(f'Tamaño comprimido: {compressed_size / (1024 * 1024):.2f} MB')
         
-        # Guardar la imagen comprimida en la carpeta 'uploads'
-        filename = str(uuid.uuid4()) + '.jpg'
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        with open(filepath, 'wb') as image_file:
-            image_file.write(compressed_image)
-        # Agregar la URL de la imagen comprimida a la lista
-        compressed_image_urls.append(request.url_root + 'uploads/' + filename)
+        # Convertir la imagen comprimida a Base64 y agregar a la lista
+        compressed_images_base64.append(image_to_base64(compressed_image))
 
-    return jsonify({'images': compressed_image_urls})
-
+    return jsonify({'images': compressed_images_base64})
 
 @app.route('/remove-bg', methods=['POST'])
 def remove_bg():
     files = request.files.getlist('images')
-    bg_removed_image_urls = []  # Lista para almacenar las URLs de las imágenes sin fondo.
-    print("Pasando por el endpoint de eliminación de fondo")
+    bg_removed_images_base64 = []  # Lista para almacenar las imágenes sin fondo en Base64.
+    
+    logging.info("Pasando por el endpoint de eliminación de fondo")
+    
     for file in files:
         size_before = len(file.read())
-        print(f'Tamaño antes de eliminar el fondo: {size_before / (1024 * 1024):.2f} MB')
+        logging.info(f'Tamaño antes de eliminar el fondo: {size_before / (1024 * 1024):.2f} MB')
+        
         file.seek(0)  # resetear el puntero del archivo para poder leerlo de nuevo
         output_image = remove(file.read())
-        size_after = len(output_image)
-        print(f'Tamaño después de eliminar el fondo: {size_after / (1024 * 1024):.2f} MB')
         
-        # Guardar la imagen sin fondo en la carpeta 'uploads'
-        filename = str(uuid.uuid4()) + '.png'
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        with open(filepath, 'wb') as image_file:
-            image_file.write(output_image)
-        # Agregar la URL de la imagen sin fondo a la lista
-        bg_removed_image_urls.append(request.url_root + 'uploads/' + filename)
+        # Convertir la imagen sin fondo a Base64 y agregar a la lista
+        bg_removed_images_base64.append(image_to_base64(output_image))
 
-    return jsonify({'images': bg_removed_image_urls})
+    return jsonify({'images': bg_removed_images_base64})
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0')
