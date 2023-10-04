@@ -3,6 +3,7 @@ from flask_cors import CORS
 from rembg import remove
 from PIL import Image
 import io
+import base64
 import uuid
 import os
 

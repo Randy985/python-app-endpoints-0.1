@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Procesador de Imágenes</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
+  <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+</head>
+
+<body>
+  <div class="container mt-5">
+    <h1>Procesador de Imágenes</h1>
+    <form id="upload-form">
+      <div class="form-group">
+        <label>Imagen Principal:</label>
+        <input type="file" name="main_image" class="form-control-file" required />
+      </div>
+      <div class="form-group">
+        <label>Imágenes Adicionales:</label>
+        <input type="file" multiple name="additional_images" class="form-control-file" />
+      </div>
+      <button type="submit" class="btn btn-primary">Procesar Imágenes</button>
+    </form>
+
+    <div id="output" class="row mt-5"></div>
+  </div>
+</body>
+<script>
+  $(document).ready(function () {
+    $("#upload-form").on("submit", function (e) {
+      e.preventDefault();
+
+      var formData = new FormData(this);
+
+      $.ajax({
+        url: "http://127.0.0.1:5000/remove-bg",
+        type: "POST",
+        data: formData,
+        contentType: false,
+        processData: false,
+        success: function (response) {
+          var bgRemovedImageUrls = response.images;
+          console.log("Background removed image URLs:", bgRemovedImageUrls);
+          var compressedFormData = new FormData();
+          var counter = 0;
+
+          bgRemovedImageUrls.forEach(function (imageUrl, index) {
+            fetch("http://127.0.0.1:5000" + imageUrl)
+              .then((res) => res.blob())
+              .then((blob) => blob.arrayBuffer())
+              .then((arrayBuffer) => {
+                var blobData = new Blob([arrayBuffer], {
+                  type: "image/jpeg",
+                });
+                compressedFormData.append(
+                  "images",
+                  blobData,
+                  `image${index}.jpg`
+                );
+                counter++;
+
+                if (counter === bgRemovedImageUrls.length) {
+                  $.ajax({
+                    url: "http://127.0.0.1:5000/compress",
+                    type: "POST",
+                    data: compressedFormData,
+                    contentType: false,
+                    processData: false,
+                    success: function (response) {
+                      var compressedImageUrls = response.images;
+                      console.log(
+                        "Compressed image URLs:",
+                        compressedImageUrls
+                      );
+                      compressedImageUrls.forEach(function (imageUrl) {
+                        var col = $('<div class="col-md-3"><img src="http://127.0.0.1:5000' + imageUrl + '" class="img-fluid"></div>');
+
+                        $("#output").append(col);
+                      });
+                    },
+                  });
+                }
+              });
+          });
+        },
+      });
+    });
+  });
+
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+</html>

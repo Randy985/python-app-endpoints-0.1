@@ -1,82 +1,101 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from rembg import remove
 from PIL import Image
 import io
-import logging
-import base64
+import pyimgur
+import os
 
-logging.basicConfig(level=logging.DEBUG)
+IMGUR_CLIENT_ID = '67b749b9b6bb35b'
+IMGUR_CLIENT_SECRET = 'c4543eba84a80c2d9f8f2ac4af2da1caf06a2d31'
+imgur = pyimgur.Imgur(IMGUR_CLIENT_ID, IMGUR_CLIENT_SECRET)
+
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 CORS(app)
 
-def image_to_base64(image_bytes):
-    return base64.b64encode(image_bytes).decode('utf-8')
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def base64_to_image(base64_string, output_path):
-    image_bytes = base64.b64decode(base64_string)
-    with open(output_path, 'wb') as img_file:
-        img_file.write(image_bytes)
-
-def compress_image(image_bytes, target_size_kb=200):
-    input_image = Image.open(io.BytesIO(image_bytes))
-    input_image = input_image.convert("RGBA")  # Asegurarse de que la imagen esté en modo RGBA
-    
-    # Crear una nueva imagen con fondo blanco del mismo tamaño que la imagen original
-    white_bg = Image.new("RGBA", input_image.size, "white")
-    # Combinar la imagen original con el fondo blanco
-    merged_image = Image.alpha_composite(white_bg, input_image)
-    merged_image = merged_image.convert("RGB")  # Convertir a RGB ya que JPEG no soporta transparencia
-
-    output_io = io.BytesIO()
-    quality = 90  # Calidad inicial de la compresión
-    while quality > 10:  # Calidad mínima para asegurar que el bucle se detenga en algún punto
-        output_io.seek(0)  # Reiniciar el buffer de IO
-        output_io.truncate()  # Limpiar el buffer de IO
-        merged_image.save(output_io, format='JPEG', quality=quality)  # Guardar la imagen con la calidad actual
-        filesize_kb = len(output_io.getvalue()) / 1024  # Obtener el tamaño del archivo en KB
-        if filesize_kb <= target_size_kb:
-            break  # Si el tamaño del archivo está por debajo del objetivo, detener el proceso
-        quality -= 5  # Si el tamaño del archivo está por encima del objetivo, reducir la calidad
-    return output_io.getvalue()
-
-@app.route('/compress', methods=['POST'])
-def compress():
-    files = request.files.getlist('images')
-    compressed_images_base64 = []  # Lista para almacenar las imágenes comprimidas en Base64.
-    
-    logging.info("Pasando por el endpoint de compresión")
-    
-    for file in files:
-        original_size = len(file.read())
-        logging.info(f'Tamaño original: {original_size / (1024 * 1024):.2f} MB')
-        
-        file.seek(0)  # resetear el puntero del archivo para poder leerlo de nuevo
-        compressed_image = compress_image(file.read())
-        
-        # Convertir la imagen comprimida a Base64 y agregar a la lista
-        compressed_images_base64.append(image_to_base64(compressed_image))
-
-    return jsonify({'images': compressed_images_base64})
+def upload_to_imgur(image_bytes):
+    """Sube la imagen a Imgur y devuelve la URL corta de la imagen."""
+    temp_file_path = "temp_image.png"
+    with open(temp_file_path, "wb") as temp_file:
+        temp_file.write(image_bytes)
+    uploaded_image = imgur.upload_image(temp_file_path, title="Uploaded with pyimgur")
+    os.remove(temp_file_path)
+    return uploaded_image.link  # la biblioteca ya devuelve una URL corta.
 
 @app.route('/remove-bg', methods=['POST'])
 def remove_bg():
-    files = request.files.getlist('images')
-    bg_removed_images_base64 = []  # Lista para almacenar las imágenes sin fondo en Base64.
-    
-    logging.info("Pasando por el endpoint de eliminación de fondo")
-    
-    for file in files:
-        size_before = len(file.read())
-        logging.info(f'Tamaño antes de eliminar el fondo: {size_before / (1024 * 1024):.2f} MB')
-        
-        file.seek(0)  # resetear el puntero del archivo para poder leerlo de nuevo
-        output_image = remove(file.read())
-        
-        # Convertir la imagen sin fondo a Base64 y agregar a la lista
-        bg_removed_images_base64.append(image_to_base64(output_image))
+    if 'main_image' not in request.files:
+        return jsonify({'error': 'No main image provided'})
 
-    return jsonify({'images': bg_removed_images_base64})
+    main_image = request.files['main_image']
+    additional_images = sorted([file for key, file in request.files.items() if 'additional_image_' in key], key=lambda x: x.filename)
+
+    all_images = [main_image] + additional_images
+
+    bg_removed_image_links = []
+
+    print("Pasando por el endpoint de eliminación de fondo")
+
+    for file in all_images:
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'})
+        if file and allowed_file(file.filename):
+            output_image_bytes = remove(file.stream.read())
+            bg_removed_image_link = upload_to_imgur(output_image_bytes)
+            bg_removed_image_links.append(bg_removed_image_link)
+
+    return jsonify({'images': bg_removed_image_links})
+
+
+@app.route('/compress', methods=['POST'])
+def compress():
+    if 'images' not in request.files:
+        return jsonify({'error': 'No file part'})
+
+    files = request.files.getlist('images')
+    compressed_image_links = []
+
+    print("Pasando por el endpoint de compresión")
+
+    for file in files:
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'})
+        if file and allowed_file(file.filename):
+            file_bytes = file.stream.read()
+            buffered = io.BytesIO(file_bytes)
+            input_image = Image.open(buffered)
+            compressed_image_path = compress_image(input_image)
+            compressed_image_link = upload_to_imgur(open(compressed_image_path, 'rb').read())
+            os.remove(compressed_image_path)  # Eliminar imagen temporal después de subirla.
+            compressed_image_links.append(compressed_image_link)
+
+    return jsonify({'images': compressed_image_links})
+
+def compress_image(input_image, target_size_kb=200):
+    input_image = input_image.convert("RGBA")
+    white_bg = Image.new("RGBA", input_image.size, "white")
+    merged_image = Image.alpha_composite(white_bg, input_image)
+    merged_image = merged_image.convert("RGB")
+
+    output_path = os.path.join(app.config['UPLOAD_FOLDER'], 'compressed.jpg')
+    quality = 90
+    while quality > 10:
+        merged_image.save(output_path, format='JPEG', quality=quality)
+        filesize_kb = os.path.getsize(output_path) / 1024
+        if filesize_kb <= target_size_kb:
+            break
+        quality -= 5
+
+    return output_path
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0')
+    if not os.path.exists(UPLOAD_FOLDER):
+        os.makedirs(UPLOAD_FOLDER)
+    app.run()
