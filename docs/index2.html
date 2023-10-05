@@ -35,7 +35,7 @@
       var formData = new FormData(this);
 
       $.ajax({
-        url: "http://127.0.0.1:5000/remove-bg",
+        url: "https://endpoints-python.onrender.com/remove-bg",
         type: "POST",
         data: formData,
         contentType: false,
@@ -47,7 +47,7 @@
           var counter = 0;
 
           bgRemovedImageUrls.forEach(function (imageUrl, index) {
-            fetch("http://127.0.0.1:5000" + imageUrl)
+            fetch("https://endpoints-python.onrender.com" + imageUrl)
               .then((res) => res.blob())
               .then((blob) => blob.arrayBuffer())
               .then((arrayBuffer) => {
@@ -63,7 +63,7 @@
 
                 if (counter === bgRemovedImageUrls.length) {
                   $.ajax({
-                    url: "http://127.0.0.1:5000/compress",
+                    url: "https://endpoints-python.onrender.com/compress",
                     type: "POST",
                     data: compressedFormData,
                     contentType: false,
@@ -75,7 +75,7 @@
                         compressedImageUrls
                       );
                       compressedImageUrls.forEach(function (imageUrl) {
-                        var col = $('<div class="col-md-3"><img src="http://127.0.0.1:5000' + imageUrl + '" class="img-fluid"></div>');
+                        var col = $('<div class="col-md-3"><img src="https://endpoints-python.onrender.com' + imageUrl + '" class="img-fluid"></div>');
 
                         $("#output").append(col);
                       });
