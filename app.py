@@ -11,7 +11,7 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 def generate_short_url():
     unique_id = str(uuid.uuid4()).replace('-', '')

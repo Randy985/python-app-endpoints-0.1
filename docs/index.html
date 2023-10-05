@@ -35,7 +35,7 @@
       var formData = new FormData(this);
 
       $.ajax({
-        url: "http://pip.bestcomputersa.com/remove-bg",
+        url: "https://endpoints-python.onrender.com/remove-bg",
         type: "POST",
         data: formData,
         contentType: false,
@@ -47,7 +47,7 @@
           var counter = 0;
 
           bgRemovedImageUrls.forEach(function (imageUrl, index) {
-            fetch("http://pip.bestcomputersa.com" + imageUrl)
+            fetch("https://endpoints-python.onrender.com" + imageUrl)
               .then((res) => res.blob())
               .then((blob) => blob.arrayBuffer())
               .then((arrayBuffer) => {
@@ -63,7 +63,7 @@
 
                 if (counter === bgRemovedImageUrls.length) {
                   $.ajax({
-                    url: "http://pip.bestcomputersa.com/compress",
+                    url: "https://endpoints-python.onrender.com/compress",
                     type: "POST",
                     data: compressedFormData,
                     contentType: false,
@@ -75,7 +75,7 @@
                         compressedImageUrls
                       );
                       compressedImageUrls.forEach(function (imageUrl) {
-                        var col = $('<div class="col-md-3"><img src="http://pip.bestcomputersa.com' + imageUrl + '" class="img-fluid"></div>');
+                        var col = $('<div class="col-md-3"><img src="https://endpoints-python.onrender.com' + imageUrl + '" class="img-fluid"></div>');
 
                         $("#output").append(col);
                       });
